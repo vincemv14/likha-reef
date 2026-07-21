@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 type CameraState = "idle" | "streaming" | "preview" | "error";
@@ -16,45 +16,47 @@ export default function CapturePage() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Cleanup stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
   const startCamera = useCallback(async () => {
     try {
-      // iOS Safari needs simpler constraints first
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        const video = videoRef.current;
-        video.setAttribute("autoplay", "");
-        video.setAttribute("muted", "");
-        video.setAttribute("playsinline", "");
-        video.srcObject = stream;
-
-        // Wait for video to be ready before showing UI
-        await new Promise<void>((resolve) => {
-          video.onloadedmetadata = () => {
-            video.play().then(resolve).catch(resolve);
-          };
-          // Fallback if metadata already loaded
-          if (video.readyState >= 1) {
-            video.play().then(resolve).catch(resolve);
-          }
+      // Try simple constraints that work reliably on iOS and Android
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+      } catch {
+        // Fallback: any camera
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
         });
       }
+
+      streamRef.current = stream;
       setCameraState("streaming");
+
+      // Small delay to ensure the video element is rendered in DOM
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 100);
     } catch (err) {
       console.error("Camera error:", err);
       setCameraState("error");
       setErrorMessage(
-        "Camera access denied or not available. Please allow camera permissions and try again, or upload a photo instead."
+        "Camera not available. Please allow camera permissions in your browser settings, or upload a photo instead."
       );
     }
   }, []);
@@ -64,13 +66,18 @@ export default function CapturePage() {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Make sure video has actual dimensions
+    const w = video.videoWidth || video.clientWidth;
+    const h = video.videoHeight || video.clientHeight;
+    if (w === 0 || h === 0) return;
+
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL("image/png");
+    ctx.drawImage(video, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
     setCapturedImage(dataUrl);
     setCameraState("preview");
 
@@ -104,8 +111,6 @@ export default function CapturePage() {
         }
       };
       reader.readAsDataURL(file);
-
-      // Reset the input so the same file can be re-selected
       e.target.value = "";
     },
     []
@@ -113,7 +118,6 @@ export default function CapturePage() {
 
   const confirmPhoto = useCallback(() => {
     if (capturedImage) {
-      // Store in sessionStorage for the transform page
       sessionStorage.setItem("likha-reef-capture", capturedImage);
       router.push("/transform");
     }
@@ -185,9 +189,8 @@ export default function CapturePage() {
                 autoPlay
                 playsInline
                 muted
-                webkit-playsinline="true"
-                className="w-full aspect-[4/3] object-cover"
-                style={{ background: "transparent" }}
+                className="w-full object-cover"
+                style={{ minHeight: "300px" }}
               />
             </div>
             <div className="flex justify-center">
@@ -208,7 +211,7 @@ export default function CapturePage() {
               <img
                 src={capturedImage}
                 alt="Captured drawing"
-                className="w-full aspect-[4/3] object-cover"
+                className="w-full object-cover"
               />
             </div>
             <div className="flex gap-3 justify-center">
