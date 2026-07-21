@@ -153,17 +153,30 @@ export default function AquariumPage() {
         const speed = state.currentSpeed * 4;
         state.x += state.dir * speed * delta;
 
-        // === Smooth turning at edges ===
-        if (state.x > 90 && state.dir > 0) {
+        // === Hard clamp — never escape the aquarium ===
+        if (state.x > 88) {
+          state.x = 88;
+          state.dir = -1;
           state.targetDir = -1;
-          state.turnProgress = 0;
-        } else if (state.x < 10 && state.dir < 0) {
+          state.turnProgress = 1;
+        } else if (state.x < 12) {
+          state.x = 12;
+          state.dir = 1;
           state.targetDir = 1;
-          state.turnProgress = 0;
+          state.turnProgress = 1;
         }
 
-        // Random direction changes
-        if (Math.random() < 0.0015 * delta * 60) {
+        // === Smooth turning before edges ===
+        if (state.x > 78 && state.dir > 0) {
+          state.targetDir = -1;
+          if (state.turnProgress >= 1) state.turnProgress = 0;
+        } else if (state.x < 22 && state.dir < 0) {
+          state.targetDir = 1;
+          if (state.turnProgress >= 1) state.turnProgress = 0;
+        }
+
+        // Random direction changes (only in the middle zone)
+        if (state.x > 25 && state.x < 75 && Math.random() < 0.0015 * delta * 60) {
           state.targetDir = state.dir * -1;
           state.turnProgress = 0;
         }
@@ -181,7 +194,7 @@ export default function AquariumPage() {
         // Pick new vertical targets periodically
         if (Math.random() < 0.005 * delta * 60) {
           state.verticalTarget =
-            (Math.random() - 0.5) * creature.wiggle_amplitude * 8;
+            (Math.random() - 0.5) * creature.wiggle_amplitude * 5;
         }
         state.verticalOffset +=
           (state.verticalTarget - state.verticalOffset) * delta * 0.8;
@@ -190,8 +203,8 @@ export default function AquariumPage() {
         const bob = Math.sin(state.time * 1.5) * creature.wiggle_amplitude * 1.5;
         state.y = state.baseY + state.verticalOffset + bob;
 
-        // Clamp vertical
-        state.y = Math.max(8, Math.min(85, state.y));
+        // Clamp vertical — keep fish well inside the aquarium
+        state.y = Math.max(12, Math.min(78, state.y));
       });
 
       // Update bubbles
