@@ -54,6 +54,9 @@ export default function AquariumPage() {
   const creaturesStateRef = useRef<Map<string, CreatureState>>(new Map());
   const bubblesRef = useRef<Bubble[]>([]);
   const [, setTick] = useState(0);
+  const [selectedCreature, setSelectedCreature] = useState<string | null>(null);
+  const [showManagePanel, setShowManagePanel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCreatures = useCallback(async () => {
     try {
@@ -64,6 +67,39 @@ export default function AquariumPage() {
       console.error("Failed to fetch creatures:", err);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const deleteCreature = useCallback(async (id: string) => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/creatures/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setCreatures((prev) => prev.filter((c) => c.id !== id));
+        creaturesStateRef.current.delete(id);
+        setSelectedCreature(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete creature:", err);
+    } finally {
+      setDeleting(false);
+    }
+  }, []);
+
+  const deleteAllCreatures = useCallback(async () => {
+    if (!confirm("Are you sure you want to delete ALL creatures from the aquarium?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/creatures/all", { method: "DELETE" });
+      if (res.ok) {
+        setCreatures([]);
+        creaturesStateRef.current.clear();
+        setShowManagePanel(false);
+      }
+    } catch (err) {
+      console.error("Failed to delete all creatures:", err);
+    } finally {
+      setDeleting(false);
     }
   }, []);
 
@@ -311,13 +347,14 @@ export default function AquariumPage() {
           return (
             <div
               key={creature.id}
-              className="absolute"
+              className="absolute cursor-pointer"
+              onClick={() => setSelectedCreature(selectedCreature === creature.id ? null : creature.id)}
               style={{
                 left: `${state.x}%`,
                 top: `${state.y}%`,
                 transform: `translate(-50%, -50%) scale(${depth.scale})`,
                 opacity: depth.opacity,
-                zIndex: depth.zIndex,
+                zIndex: selectedCreature === creature.id ? 100 : depth.zIndex,
                 filter: depth.blur ? `blur(${depth.blur}px)` : undefined,
               }}
             >
@@ -337,11 +374,25 @@ export default function AquariumPage() {
               </div>
               {creature.nickname && (
                 <p
-                  className="absolute -bottom-5 left-1/2 text-[10px] text-white/70 whitespace-nowrap font-medium drop-shadow"
+                  className="absolute -bottom-6 left-1/2 text-sm sm:text-base text-white font-semibold whitespace-nowrap drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
                   style={{ transform: `translateX(-50%) scaleX(${scaleX})` }}
                 >
                   {creature.nickname}
                 </p>
+              )}
+              {/* Delete button when selected */}
+              {selectedCreature === creature.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteCreature(creature.id);
+                  }}
+                  disabled={deleting}
+                  className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-red-500 hover:bg-red-400 text-white text-xs font-bold flex items-center justify-center shadow-lg border-2 border-white/50 z-50"
+                  style={{ transform: `scaleX(${scaleX})` }}
+                >
+                  ✕
+                </button>
               )}
             </div>
           );
@@ -353,10 +404,18 @@ export default function AquariumPage() {
         <h1 className="text-lg font-bold text-white/90 drop-shadow-lg">
           🐠 LIKHA-Reef
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <span className="text-xs text-white/60 bg-black/20 backdrop-blur-sm px-2 py-1 rounded-full">
             {creatures.length} creatures
           </span>
+          {creatures.length > 0 && (
+            <button
+              onClick={() => setShowManagePanel(!showManagePanel)}
+              className="px-3 py-2 text-xs font-medium rounded-full bg-sky-700/80 hover:bg-sky-600 text-white shadow-lg transition-all backdrop-blur-sm"
+            >
+              ⚙️ Manage
+            </button>
+          )}
           <Link
             href="/capture"
             className="px-4 py-2 text-sm font-medium rounded-full bg-teal-500/90 hover:bg-teal-400 text-white shadow-lg transition-all hover:scale-105 backdrop-blur-sm"
@@ -365,6 +424,31 @@ export default function AquariumPage() {
           </Link>
         </div>
       </div>
+
+      {/* Manage panel */}
+      {showManagePanel && (
+        <div className="absolute top-16 right-4 z-50 bg-sky-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-sky-700/50 p-4 w-64">
+          <h3 className="text-sm font-semibold text-sky-200 mb-3">Manage Aquarium</h3>
+          <p className="text-xs text-sky-400 mb-3">
+            Tap any fish to select it, then press ✕ to delete it.
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={deleteAllCreatures}
+              disabled={deleting}
+              className="w-full px-4 py-2 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50"
+            >
+              {deleting ? "Deleting..." : "🗑️ Delete All Creatures"}
+            </button>
+            <button
+              onClick={() => { setShowManagePanel(false); setSelectedCreature(null); }}
+              className="w-full px-4 py-2 text-sm font-medium rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Loading state */}
       {loading && (
