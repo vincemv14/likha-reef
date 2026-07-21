@@ -18,24 +18,43 @@ export default function CapturePage() {
 
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // iOS Safari needs simpler constraints first
+      const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: "environment",
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
-      });
+        audio: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        const video = videoRef.current;
+        video.setAttribute("autoplay", "");
+        video.setAttribute("muted", "");
+        video.setAttribute("playsinline", "");
+        video.srcObject = stream;
+
+        // Wait for video to be ready before showing UI
+        await new Promise<void>((resolve) => {
+          video.onloadedmetadata = () => {
+            video.play().then(resolve).catch(resolve);
+          };
+          // Fallback if metadata already loaded
+          if (video.readyState >= 1) {
+            video.play().then(resolve).catch(resolve);
+          }
+        });
       }
       setCameraState("streaming");
     } catch (err) {
       console.error("Camera error:", err);
       setCameraState("error");
       setErrorMessage(
-        "Camera access denied. Please allow camera permissions and try again."
+        "Camera access denied or not available. Please allow camera permissions and try again, or upload a photo instead."
       );
     }
   }, []);
@@ -166,7 +185,9 @@ export default function CapturePage() {
                 autoPlay
                 playsInline
                 muted
-                className="w-full aspect-[4/3] object-cover bg-black"
+                webkit-playsinline="true"
+                className="w-full aspect-[4/3] object-cover"
+                style={{ background: "transparent" }}
               />
             </div>
             <div className="flex justify-center">
