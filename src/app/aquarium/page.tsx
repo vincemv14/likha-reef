@@ -267,15 +267,16 @@ export default function AquariumPage() {
   }, [creatures]);
 
   const getDepthStyles = (depthLayer: number) => {
+    // Keep all fish close in size so every kid's drawing feels valued
     switch (depthLayer) {
-      case 1:
-        return { scale: 0.45, opacity: 0.55, zIndex: 1, blur: 1 };
-      case 2:
-        return { scale: 0.7, opacity: 0.8, zIndex: 2, blur: 0 };
-      case 3:
+      case 1: // slightly further back
+        return { scale: 0.85, opacity: 0.7, zIndex: 1, blur: 0.5 };
+      case 2: // middle
+        return { scale: 0.92, opacity: 0.85, zIndex: 2, blur: 0 };
+      case 3: // foreground
         return { scale: 1.0, opacity: 1.0, zIndex: 3, blur: 0 };
       default:
-        return { scale: 0.7, opacity: 0.8, zIndex: 2, blur: 0 };
+        return { scale: 0.92, opacity: 0.85, zIndex: 2, blur: 0 };
     }
   };
 
@@ -368,14 +369,14 @@ export default function AquariumPage() {
                 <img
                   src={creature.image_url}
                   alt={creature.nickname || "Sea creature"}
-                  className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+                  className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
                   draggable={false}
                 />
               </div>
               {creature.nickname && (
                 <p
                   className="absolute -bottom-6 left-1/2 text-sm sm:text-base text-white font-semibold whitespace-nowrap drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-                  style={{ transform: `translateX(-50%) scaleX(${scaleX})` }}
+                  style={{ transform: "translateX(-50%)" }}
                 >
                   {creature.nickname}
                 </p>
@@ -389,7 +390,6 @@ export default function AquariumPage() {
                   }}
                   disabled={deleting}
                   className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-red-500 hover:bg-red-400 text-white text-xs font-bold flex items-center justify-center shadow-lg border-2 border-white/50 z-50"
-                  style={{ transform: `scaleX(${scaleX})` }}
                 >
                   ✕
                 </button>
